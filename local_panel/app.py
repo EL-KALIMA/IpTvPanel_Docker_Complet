@@ -1587,6 +1587,37 @@ def generate_playlist(token, output_format='m3u8'):
 
     return m3u, 200, {'Content-Type': 'application/vnd.apple.mpegurl; charset=utf-8'}
 
+@app.route('/live/stream/<channel_id>.m3u8')
+def live_stream(channel_id):
+    """
+    Stream a specific channel by ID with token authentication.
+    Redirects to the source stream URL after authentication.
+    """
+    # Get token from query parameter
+    token = request.args.get('token')
+    if not token:
+        abort(403, "Missing token")
+    
+    # Authenticate user by token
+    user = User.query.filter_by(token=token).first()
+    if not user:
+        abort(403, "Invalid token")
+    
+    if not user.is_active or user.is_expired():
+        abort(403, "User account is inactive or expired")
+    
+    # Get channel
+    channel = Channel.query.filter_by(channel_id=channel_id, is_active=True).first()
+    if not channel:
+        abort(404, "Channel not found")
+    
+    # Update user's last access
+    user.last_access = datetime.utcnow()
+    db.session.commit()
+    
+    # Redirect to the actual source URL
+    return redirect(channel.source_url)
+
 # ============================================================================
 # SYSTEM
 # ============================================================================

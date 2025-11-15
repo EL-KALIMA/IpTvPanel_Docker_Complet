@@ -1,0 +1,256 @@
+{
+  "configuration_guide": {
+    "description": "Configuration exemple pour Nginx Proxy Manager (NPM)",
+    "version": "1.0.0",
+    "author": "IPTV Panel Team",
+    "last_updated": "2024-11-15"
+  },
+  
+  "prerequisites": {
+    "npm_installed": "Nginx Proxy Manager doit être installé sur Proxmox",
+    "npm_version": "2.9.0 ou supérieure",
+    "panel_ip": "L'IP du conteneur/VM où le panel IPTV est installé",
+    "domain": "Un nom de domaine pointant vers votre serveur Proxmox"
+  },
+
+  "proxy_host_configuration": {
+    "step_1_details": {
+      "domain_names": "panel.example.com",
+      "scheme": "http",
+      "forward_hostname_ip": "192.168.1.100",
+      "forward_port": 80,
+      "cache_assets": false,
+      "block_common_exploits": true,
+      "websockets_support": true,
+      "access_list": "Public ou votre liste d'accès personnalisée"
+    },
+    
+    "step_2_ssl": {
+      "ssl_certificate": "Request a new SSL Certificate with Let's Encrypt",
+      "force_ssl": true,
+      "http2_support": true,
+      "hsts_enabled": true,
+      "hsts_subdomains": false,
+      "email": "admin@example.com",
+      "agree_to_terms": true
+    },
+    
+    "step_3_advanced": {
+      "custom_nginx_configuration": "# Configuration personnalisée pour Panel IPTV\n\n# Augmenter les timeouts pour les longues requêtes\nproxy_connect_timeout 300;\nproxy_send_timeout 300;\nproxy_read_timeout 300;\nsend_timeout 300;\n\n# Augmenter la taille maximale du body\nclient_max_body_size 500M;\n\n# Headers pour WebSocket et streaming\nproxy_http_version 1.1;\nproxy_set_header Upgrade $http_upgrade;\nproxy_set_header Connection \"upgrade\";\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\nproxy_set_header X-Forwarded-Host $host;\nproxy_set_header X-Forwarded-Port $server_port;\n\n# Cache pour les assets statiques\nlocation ~* \\.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {\n    proxy_pass http://192.168.1.100:80;\n    proxy_cache_valid 200 7d;\n    proxy_cache_valid 404 1m;\n    add_header Cache-Control \"public, max-age=604800, immutable\";\n}\n\n# Désactiver le cache pour les requêtes API\nlocation /api/ {\n    proxy_pass http://192.168.1.100:80;\n    proxy_cache off;\n    add_header Cache-Control \"no-store, no-cache, must-revalidate\";\n}\n\n# Support pour les playlists M3U\nlocation ~ \\.(m3u|m3u8)$ {\n    proxy_pass http://192.168.1.100:80;\n    add_header Content-Type \"application/vnd.apple.mpegurl\";\n    add_header Cache-Control \"no-cache\";\n}"
+    }
+  },
+
+  "step_by_step_guide": {
+    "step_1": {
+      "title": "Accéder à Nginx Proxy Manager",
+      "instructions": [
+        "Ouvrez votre navigateur et accédez à NPM: http://PROXMOX_IP:81",
+        "Connectez-vous avec les identifiants par défaut:",
+        "  - Email: admin@example.com",
+        "  - Password: changeme",
+        "Changez immédiatement le mot de passe par défaut"
+      ]
+    },
+    
+    "step_2": {
+      "title": "Créer un Proxy Host",
+      "instructions": [
+        "Dans le tableau de bord NPM, cliquez sur 'Proxy Hosts'",
+        "Cliquez sur 'Add Proxy Host'",
+        "Remplissez l'onglet 'Details':"
+      ],
+      "details_tab": {
+        "domain_names": "panel.example.com (ou votre domaine)",
+        "scheme": "http",
+        "forward_hostname_ip": "192.168.1.100 (IP de votre conteneur IPTV)",
+        "forward_port": "80",
+        "cache_assets": "Décoché (nous gérons le cache dans la config avancée)",
+        "block_common_exploits": "Coché",
+        "websockets_support": "Coché"
+      }
+    },
+    
+    "step_3": {
+      "title": "Configurer le SSL",
+      "instructions": [
+        "Passez à l'onglet 'SSL'",
+        "Sélectionnez 'Request a new SSL Certificate'",
+        "Cochez 'Force SSL'",
+        "Cochez 'HTTP/2 Support'",
+        "Cochez 'HSTS Enabled'",
+        "Entrez votre email",
+        "Acceptez les termes Let's Encrypt",
+        "Cliquez sur 'Save'"
+      ]
+    },
+    
+    "step_4": {
+      "title": "Ajouter la Configuration Avancée",
+      "instructions": [
+        "Après la création, cliquez sur les trois points à droite du host",
+        "Sélectionnez 'Edit'",
+        "Passez à l'onglet 'Advanced'",
+        "Copiez-collez la configuration personnalisée ci-dessous",
+        "Adaptez l'IP (192.168.1.100) à votre cas",
+        "Cliquez sur 'Save'"
+      ],
+      "custom_config": "Voir 'custom_nginx_configuration' dans ce fichier JSON"
+    }
+  },
+
+  "advanced_configurations": {
+    "multiple_domains": {
+      "description": "Si vous avez plusieurs domaines pour le même panel",
+      "domain_names": "panel.example.com, iptv.example.com, www.panel.example.com",
+      "note": "Séparez les domaines par des virgules"
+    },
+    
+    "custom_location_rules": {
+      "description": "Règles de localisation personnalisées",
+      "examples": [
+        {
+          "name": "Bloquer l'accès à /admin depuis Internet",
+          "config": "location /admin {\n    allow 192.168.1.0/24;\n    deny all;\n    proxy_pass http://192.168.1.100:80;\n}"
+        },
+        {
+          "name": "Rate limiting pour l'API",
+          "config": "limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;\n\nlocation /api/ {\n    limit_req zone=api_limit burst=20 nodelay;\n    proxy_pass http://192.168.1.100:80;\n}"
+        },
+        {
+          "name": "Headers de sécurité additionnels",
+          "config": "add_header X-Frame-Options \"SAMEORIGIN\" always;\nadd_header X-Content-Type-Options \"nosniff\" always;\nadd_header X-XSS-Protection \"1; mode=block\" always;\nadd_header Referrer-Policy \"no-referrer-when-downgrade\" always;"
+        }
+      ]
+    },
+    
+    "load_balancing": {
+      "description": "Configuration pour plusieurs instances du panel",
+      "upstream_config": "upstream iptv_backend {\n    least_conn;\n    server 192.168.1.100:80 max_fails=3 fail_timeout=30s;\n    server 192.168.1.101:80 max_fails=3 fail_timeout=30s;\n    server 192.168.1.102:80 backup;\n}\n\nlocation / {\n    proxy_pass http://iptv_backend;\n}",
+      "note": "Cette configuration nécessite plusieurs instances du panel"
+    }
+  },
+
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "502 Bad Gateway",
+        "causes": [
+          "Le conteneur IPTV n'est pas démarré",
+          "L'IP forward est incorrecte",
+          "Le port forward est incorrect",
+          "Le firewall bloque la connexion"
+        ],
+        "solutions": [
+          "Vérifier: docker compose ps dans le conteneur IPTV",
+          "Vérifier l'IP avec: ip addr show",
+          "Vérifier que le port 80 est bien ouvert",
+          "Vérifier les règles firewall: ufw status"
+        ]
+      },
+      {
+        "issue": "Certificat SSL ne se génère pas",
+        "causes": [
+          "Le domaine ne pointe pas vers votre IP publique",
+          "Le port 80 n'est pas accessible depuis Internet",
+          "Rate limit Let's Encrypt atteint"
+        ],
+        "solutions": [
+          "Vérifier DNS: nslookup panel.example.com",
+          "Tester l'accès: curl http://panel.example.com",
+          "Attendre 1 heure si rate limit atteint",
+          "Utiliser le staging environment pour les tests"
+        ]
+      },
+      {
+        "issue": "WebSocket ne fonctionne pas",
+        "causes": [
+          "Websockets Support non coché",
+          "Configuration avancée incorrecte"
+        ],
+        "solutions": [
+          "Cocher 'Websockets Support' dans l'onglet Details",
+          "Ajouter les headers WebSocket dans la config avancée"
+        ]
+      }
+    ]
+  },
+
+  "security_recommendations": {
+    "best_practices": [
+      {
+        "recommendation": "Utiliser une Access List",
+        "description": "Créez une Access List dans NPM pour restreindre l'accès par IP",
+        "steps": [
+          "Allez dans 'Access Lists'",
+          "Créez une nouvelle liste",
+          "Ajoutez les IPs autorisées",
+          "Appliquez la liste au Proxy Host"
+        ]
+      },
+      {
+        "recommendation": "Activer Fail2Ban",
+        "description": "Protégez contre les attaques par force brute",
+        "command": "apt install fail2ban && systemctl enable fail2ban"
+      },
+      {
+        "recommendation": "Limiter les tentatives de connexion",
+        "description": "Ajoutez un rate limiting sur la page de login",
+        "config": "location /login {\n    limit_req zone=login_limit burst=5 nodelay;\n    proxy_pass http://192.168.1.100:80;\n}"
+      },
+      {
+        "recommendation": "Utiliser des certificats SSL valides",
+        "description": "Toujours utiliser Let's Encrypt pour les certificats SSL"
+      },
+      {
+        "recommendation": "Mettre à jour régulièrement",
+        "description": "Gardez NPM et le panel IPTV à jour"
+      }
+    ]
+  },
+
+  "monitoring": {
+    "npm_logs": {
+      "access_log": "/data/logs/proxy-host-{id}_access.log",
+      "error_log": "/data/logs/proxy-host-{id}_error.log",
+      "view_command": "docker logs -f nginx-proxy-manager"
+    },
+    
+    "health_check": {
+      "description": "Vérifier la santé du proxy",
+      "commands": [
+        "curl -I https://panel.example.com",
+        "docker exec nginx-proxy-manager nginx -t",
+        "docker stats nginx-proxy-manager"
+      ]
+    }
+  },
+
+  "backup_restore": {
+    "backup": {
+      "description": "Sauvegarder la configuration NPM",
+      "location": "/data dans le conteneur NPM",
+      "command": "docker cp nginx-proxy-manager:/data ./npm-backup-$(date +%Y%m%d)"
+    },
+    
+    "restore": {
+      "description": "Restaurer la configuration NPM",
+      "command": "docker cp ./npm-backup-20240115 nginx-proxy-manager:/data"
+    }
+  },
+
+  "additional_resources": {
+    "official_docs": "https://nginxproxymanager.com/guide/",
+    "github": "https://github.com/NginxProxyManager/nginx-proxy-manager",
+    "community_forum": "https://community.nginxproxymanager.com/"
+  },
+
+  "notes": [
+    "Remplacez toujours 192.168.1.100 par l'IP réelle de votre conteneur IPTV",
+    "Remplacez panel.example.com par votre vrai nom de domaine",
+    "Testez toujours la configuration avant de la mettre en production",
+    "Gardez une sauvegarde de votre configuration NPM",
+    "Surveillez les logs pour détecter les problèmes",
+    "N'exposez pas NPM directement sur Internet sans protection",
+    "Utilisez toujours HTTPS en production"
+  ]
+}

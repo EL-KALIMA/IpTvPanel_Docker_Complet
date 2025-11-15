@@ -553,8 +553,8 @@ def users_view(user_id):
     panel_url = panel_playlist_url(user.token)
     direct_stream_url = streaming_playlist_url(user.token)
 
-    # Generate Xtream Codes format URL
-    xtream_url = url_for('get_php_playlist', username=user.username, password=user.password or '', type='m3u', _external=True)
+    # Generate Xtream Codes format URL (password not stored in plaintext, user must provide it)
+    xtream_url = url_for('get_php_playlist', username=user.username, password='<YOUR_PASSWORD>', type='m3u', _external=True)
 
     return render_template(
         'users_view.html',
@@ -1391,7 +1391,7 @@ def api_create_user():
     db.session.commit()
 
     # Sync with streaming server (if configured)
-    sync_success, sync_detail = sync_user_with_streaming(user, 'create')
+    sync_success, sync_detail = sync_user_with_streaming(user, 'create', plain_password=plaintext_password)
     if not sync_success:
         current_app.logger.warning(f'Streaming server sync failed for {username}: {sync_detail}')
         # Don't fail the user creation - just log the issue
@@ -1586,6 +1586,34 @@ def generate_playlist(token, output_format='m3u8'):
     db.session.commit()
 
     return m3u, 200, {'Content-Type': 'application/vnd.apple.mpegurl; charset=utf-8'}
+
+
+@app.route('/live/stream/<int:channel_id>.m3u8')
+def live_stream(channel_id):
+    """
+    Stream a specific channel by ID with token authentication.
+    Proxies the source stream URL.
+    """
+    token = request.args.get('token')
+    if not token:
+        abort(403, "Missing token")
+    
+    # Authenticate user by token
+    user = User.query.filter_by(token=token).first()
+    if not user or not user.is_active or user.is_expired():
+        abort(403, "Invalid or expired token")
+    
+    # Get channel (convert to string to match VARCHAR type)
+    channel = Channel.query.filter_by(channel_id=str(channel_id), is_active=True).first()
+    if not channel:
+        abort(404, "Channel not found")
+    
+    # Update user's last access
+    user.last_access = datetime.utcnow()
+    db.session.commit()
+    
+    # Redirect to the actual source URL
+    return redirect(channel.source_url)
 
 # ============================================================================
 # SYSTEM

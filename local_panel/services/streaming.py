@@ -97,7 +97,7 @@ class StreamingService:
         Args:
             user: User model instance
             action: 'create', 'update', or 'delete'
-            plain_password: Plain text password (optional, uses user.password if not provided)
+            plain_password: Plain text password (optional, required for create action)
         """
         cfg = _config()
         endpoint = cfg["user_endpoint"]
@@ -110,10 +110,9 @@ class StreamingService:
             "expires_at": getattr(user, "expiry_date", None).isoformat() if getattr(user, "expiry_date", None) else None,
         }
 
-        # Add password - use provided plain_password or user.password from database
-        password_to_use = plain_password or getattr(user, "password", None)
-        if password_to_use:
-            payload["password"] = password_to_use
+        # Add password if provided (passwords are not stored in plaintext)
+        if plain_password:
+            payload["password"] = plain_password
 
         if action == "create":
             return _request("POST", endpoint, json=payload)

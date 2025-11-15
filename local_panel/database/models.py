@@ -34,7 +34,6 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    password = db.Column(db.String(255))  # Plain password (for IPTV compatibility)
     password_hash = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(100))
     token = db.Column(db.String(64), unique=True, nullable=False, index=True)
@@ -51,7 +50,6 @@ class User(db.Model):
     connections = db.relationship('Connection', backref='user', lazy=True, cascade='all, delete-orphan')
 
     def set_password(self, password):
-        self.password = password  # Store plain password for IPTV panel compatibility
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
     def check_password(self, password):
